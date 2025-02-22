@@ -29,51 +29,62 @@ industry_companies = {
 # Define the companies list based on industries
 companies = [company for industry in industry_companies.values() for company in industry]
 
-# Mapped job titles to required skills and descriptions
+# Mapped job titles to required skills, descriptions, and salary ranges
 job_title_to_info = {
     "Software Engineer": {
         "description": "Design, develop, and maintain software applications and systems.",
-        "required_skills": ["Python", "Java", "C++", "AWS", "SQL"]
+        "required_skills": ["Python", "Java", "C++", "AWS", "SQL"],
+        "salary_range": "$80,000 - $150,000"
     },
     "Data Scientist": {
         "description": "Analyze complex data sets to help companies make data-driven decisions.",
-        "required_skills": ["Python", "Machine Learning", "Data Analysis", "R", "SQL"]
+        "required_skills": ["Python", "Machine Learning", "Data Analysis", "R", "SQL"],
+        "salary_range": "$70,000 - $140,000"
     },
     "Product Manager": {
         "description": "Oversee the product development process, manage product lifecycle, and work with teams to ensure product success.",
-        "required_skills": ["Project Management", "Communication", "Leadership", "Problem Solving", "Agile"]
+        "required_skills": ["Project Management", "Communication", "Leadership", "Problem Solving", "Agile"],
+        "salary_range": "$90,000 - $160,000"
     },
     "Registered Nurse": {
         "description": "Provide patient care, monitor vital signs, and administer medications as prescribed.",
-        "required_skills": ["Patient Care", "Medical Knowledge", "Compassion", "Healthcare", "Teamwork"]
+        "required_skills": ["Patient Care", "Medical Knowledge", "Compassion", "Healthcare", "Teamwork"],
+        "salary_range": "$55,000 - $90,000"
     },
     "HR Specialist": {
         "description": "Manage recruitment, onboarding, and employee relations within the organization.",
-        "required_skills": ["Recruitment", "Employee Relations", "Communication", "Leadership", "Talent Management"]
+        "required_skills": ["Recruitment", "Employee Relations", "Communication", "Leadership", "Talent Management"],
+        "salary_range": "$50,000 - $85,000"
     },
     "Financial Analyst": {
         "description": "Analyze financial data and provide insights to help businesses make informed financial decisions.",
-        "required_skills": ["Financial Modeling", "Excel", "Data Analysis", "Financial Reporting", "Accounting"]
+        "required_skills": ["Financial Modeling", "Excel", "Data Analysis", "Financial Reporting", "Accounting"],
+        "salary_range": "$60,000 - $110,000"
     },
     "Construction Manager": {
         "description": "Oversee construction projects, ensuring completion on time and within budget while maintaining quality.",
-        "required_skills": ["Construction Management", "Project Management", "Leadership", "Scheduling", "Budgeting"]
+        "required_skills": ["Construction Management", "Project Management", "Leadership", "Scheduling", "Budgeting"],
+        "salary_range": "$75,000 - $130,000"
     },
     "Investment Banker": {
         "description": "Provide financial services to businesses, including mergers, acquisitions, and other financial transactions.",
-        "required_skills": ["Financial Modeling", "Accounting", "Excel", "M&A", "Financial Analysis"]
+        "required_skills": ["Financial Modeling", "Accounting", "Excel", "M&A", "Financial Analysis"],
+        "salary_range": "$100,000 - $200,000"
     },
     "Teacher": {
         "description": "Plan and deliver lessons to students, assess their performance, and provide feedback.",
-        "required_skills": ["Lesson Planning", "Classroom Management", "Communication", "Pedagogy", "Subject Knowledge"]
+        "required_skills": ["Lesson Planning", "Classroom Management", "Communication", "Pedagogy", "Subject Knowledge"],
+        "salary_range": "$40,000 - $70,000"
     },
     "Event Planner": {
         "description": "Organize and coordinate events from start to finish, ensuring everything runs smoothly.",
-        "required_skills": ["Event Planning", "Communication", "Negotiation", "Time Management", "Budgeting"]
+        "required_skills": ["Event Planning", "Communication", "Negotiation", "Time Management", "Budgeting"],
+        "salary_range": "$45,000 - $80,000"
     },
     "Customer Service Representative": {
         "description": "Assist customers by answering inquiries, resolving complaints, and providing information about products or services.",
-        "required_skills": ["Customer Service", "Communication", "Problem Solving", "Patience", "Teamwork"]
+        "required_skills": ["Customer Service", "Communication", "Problem Solving", "Patience", "Teamwork"],
+        "salary_range": "$30,000 - $50,000"
     }
 }
 
@@ -86,12 +97,13 @@ locations = [
 job_titles = list(job_title_to_info.keys())  # Get the job titles from the keys of the dictionary
 job_descriptions = [info["description"] for info in job_title_to_info.values()]
 skills_by_job_title = {title: info["required_skills"] for title, info in job_title_to_info.items()}
+salary_by_job_title = {title: info["salary_range"] for title, info in job_title_to_info.items()}
 
 # Sub-positions (Employment Types)
 employment_types = ["Intern", "Full-time", "Part-time"]
 
 # Function to insert company data into MongoDB
-def insert_company_data(companies, industries, locations, job_titles, job_title_to_info, job_descriptions):
+def insert_company_data(companies, industries, locations, job_titles, job_title_to_info, job_descriptions, salary_by_job_title):
     company_data = []
     
     for industry, industry_companies_list in industry_companies.items():
@@ -100,6 +112,7 @@ def insert_company_data(companies, industries, locations, job_titles, job_title_
             job_titles_sample = random.sample(job_titles, 3)  # Select 3 random job titles
             job_title_to_skills_sample = {job_title: job_title_to_info[job_title] for job_title in job_titles_sample}
             job_description = random.choice(job_descriptions)
+            job_salary = {job_title: salary_by_job_title[job_title] for job_title in job_titles_sample}
             
             company_data.append({
                 'company_name': company,
@@ -107,7 +120,8 @@ def insert_company_data(companies, industries, locations, job_titles, job_title_
                 'location': location,
                 'job_titles': job_titles_sample,
                 'job_title_to_skills': job_title_to_skills_sample,
-                'job_description': job_description
+                'job_description': job_description,
+                'job_salary': job_salary  # Adding salary info
             })
     
     # Insert the data into MongoDB
@@ -115,7 +129,7 @@ def insert_company_data(companies, industries, locations, job_titles, job_title_
     print("Company data inserted into MongoDB!")
 
 # Function to insert job listings data into MongoDB
-def insert_job_listings_data(companies, locations, job_titles, skills_by_job_title, job_descriptions, employment_types, num_rows=150):
+def insert_job_listings_data(companies, locations, job_titles, skills_by_job_title, job_descriptions, employment_types, salary_by_job_title, num_rows=150):
     job_listings_data = []
     
     for _ in range(num_rows):  # Generate the desired number of rows
@@ -123,6 +137,7 @@ def insert_job_listings_data(companies, locations, job_titles, skills_by_job_tit
         job_title = random.choice(job_titles)
         required_skills = skills_by_job_title[job_title]  # Get skills related to the job title
         employment_type = random.choice(employment_types)  # Assign employment type (Intern, Full-time, Part-time)
+        job_salary = salary_by_job_title[job_title]  # Get salary for the job title
         
         job_listing = {
             'job_title': job_title,
@@ -130,7 +145,8 @@ def insert_job_listings_data(companies, locations, job_titles, skills_by_job_tit
             'location': random.choice(locations),
             'required_skills': required_skills,  # Skills based on job title
             'job_description': job_title_to_info[job_title]["description"],  # Description based on job title
-            'employment_type': employment_type  # Sub-position (Intern, Full-time, Part-time)
+            'employment_type': employment_type,  # Sub-position (Intern, Full-time, Part-time)
+            'salary_range': job_salary  # Adding salary range
         }
         
         job_listings_data.append(job_listing)
@@ -140,5 +156,5 @@ def insert_job_listings_data(companies, locations, job_titles, skills_by_job_tit
     print(f"Inserted {num_rows} job listings data into MongoDB!")
 
 # Insert the company data and job listings data (with num_rows between 100-150)
-insert_company_data(companies, industry_companies, locations, job_titles, job_title_to_info, job_descriptions)
-insert_job_listings_data(companies, locations, job_titles, skills_by_job_title, job_descriptions, employment_types, num_rows=random.randint(100, 150))
+insert_company_data(companies, industry_companies, locations, job_titles, job_title_to_info, job_descriptions, salary_by_job_title)
+insert_job_listings_data(companies, locations, job_titles, skills_by_job_title, job_descriptions, employment_types, salary_by_job_title, num_rows=random.randint(100, 150))
