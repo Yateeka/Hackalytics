@@ -33,7 +33,7 @@ def sidebar():
     
     # Display different options depending on whether the user is logged in
     if 'logged_in' not in st.session_state or not st.session_state.logged_in:
-        options = ['Login', 'Sign Up']
+        options = ['Login', 'Sign Up',"Forgot Password?"]
     else:
         options = ['Job Recommendations', 'Career Path Analysis', 'Resume Review', 'Logout']
     
@@ -77,6 +77,23 @@ def resume_review():
         # Placeholder for resume review (you can later integrate AI models for feedback)
         st.write("Your resume looks good! But make sure to improve your skills in Python and Machine Learning.")
 
+# Forgot Password UI
+def forgot_password_page():
+    st.title('Forgot Password')
+    
+    username = st.text_input('Username (for password reset)', key="forgot_username")
+    new_password = st.text_input('New Password', type='password', key="forgot_new_password")
+
+    reset_button = st.button('Reset Password', key="reset_password_button")
+    
+    if reset_button:
+        if username and new_password:
+            # Send reset password request to backend
+            reset_response = reset_password(username, new_password)
+            st.success(reset_response['message'])
+        else:
+            st.error('Please fill in both fields.')
+
 # Login UI
 def login_page():
     st.markdown('<div class="login-form">', unsafe_allow_html=True)
@@ -109,7 +126,8 @@ def login_page():
         st.session_state.page = "signup"
 
     if reset_button:
-        st.session_state.page = "reset_password"
+        # Redirect user to the reset password page
+        st.session_state.page = "forgot_password"
 
     st.markdown('</div>', unsafe_allow_html=True)
 

@@ -134,6 +134,18 @@ def logout():
     session.pop('username', None)  # Remove username from session
     return jsonify({"message": "Logged out successfully"})
 
+# Forgot Password (Reset Password directly)
+@app.route('/forgot_password', methods=['POST'])
+def forgot_password():
+    username = request.json.get('username')
+    new_password = request.json.get('new_password')
+    
+    if username and new_password:
+        reset_response = reset_password(username, new_password)
+        return jsonify({"message": reset_response})
+    else:
+        return jsonify({"message": "Please provide both username and new password."}), 400
+
 # Set default page to login
 if __name__ == '__main__':
     app.run(debug=True)
