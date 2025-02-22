@@ -1,19 +1,31 @@
-from flask import Flask, request, jsonify, session, redirect, url_for
+from flask import Flask, request, jsonify, session
 from pymongo import MongoClient
 from hashlib import sha256
+import openai
+from dotenv import load_dotenv
+import os
+import fitz  # PyMuPDF for PDFs
+import docx
 
-# Establish a connection to MongoDB (cloud-based)
-client = MongoClient("mongodb+srv://Yateeka:hacklytics@hackalytics.warwu.mongodb.net/")
-db = client['job_data']  # Database name
-user_collection = db['users']  # Collection for user data
+# Load environment variables
+load_dotenv()
+
+# OpenAI API setup
+openai.api_key = os.getenv("API_KEY")  # Load the OpenAI API key from .env file
+
+# Establish MongoDB connection using the connection string in the .env file
+mongo_connection_string = os.getenv("MONGO_CONNECTION_STRING")
+client = MongoClient(mongo_connection_string)
+db = client['job_data']
+user_collection = db['users']
+job_collection = db['job_listings']
 
 # Initialize Flask app
 app = Flask(__name__)
+app.secret_key = os.getenv("FLASK_SECRET_KEY")  # Secret key for session management
 
-# Secret key for session management
-app.secret_key = "your_secret_key_here"
+# ---------------------- User Management Functions ----------------------
 
-# Function to add a new user
 def add_user(username, name, password):
     hashed_password = sha256(password.encode()).hexdigest()
     user_data = {
@@ -21,131 +33,122 @@ def add_user(username, name, password):
         'username': username,
         'password': hashed_password
     }
-    user_collection.insert_one(user_data)  # Insert user into MongoDB
+    user_collection.insert_one(user_data)
 
-# Function to reset a user's password
 def reset_password(username, new_password):
     hashed_new_password = sha256(new_password.encode()).hexdigest()
     result = user_collection.update_one(
         {'username': username},
         {'$set': {'password': hashed_new_password}}
     )
-    if result.matched_count > 0:
-        return "Password reset successfully"
-    else:
-        return "User not found"
+    return "Password reset successfully" if result.matched_count > 0 else "User not found"
 
-# Function to verify a user's login
 def verify_user(username, password):
     hashed_password = sha256(password.encode()).hexdigest()
     user = user_collection.find_one({'username': username})
-    if user and user['password'] == hashed_password:
-        return "Login successful"
-    else:
-        return "Invalid credentials"
+    return "Login successful" if user and user['password'] == hashed_password else "Invalid credentials"
 
-# Endpoint for login
+# ---------------------- MongoDB Query Functions ----------------------
+
+# Fetch jobs from MongoDB based on job title and required skills
+def fetch_jobs(job_title, skills_list):
+    query = {'job_title': {'$regex': job_title, '$options': 'i'}}
+    if skills_list:
+        query['required_skills'] = {'$in': skills_list}
+    return list(job_collection.find(query))
+
+# Extract text from PDF using PyMuPDF
+def extract_text_from_pdf(file):
+    doc = fitz.open(stream=file.read(), filetype="pdf")
+    text = ""
+    for page in doc:
+        text += page.get_text()
+    return text
+
+# Extract text from DOCX file using python-docx
+def extract_text_from_docx(file):
+    doc = docx.Document(file)
+    return "\n".join([para.text for para in doc.paragraphs])
+
+# ---------------------- OpenAI Resume Feedback Function ----------------------
+
+def get_resume_feedback(resume_text, user_question):
+    response = openai.ChatCompletion.create(
+        model="gpt-4",  # Use the correct model: gpt-4 or gpt-3.5-turbo (or mini variant if needed)
+        messages=[
+            {"role": "system", "content": "You are a helpful assistant that provides detailed resume feedback focusing on structure, clarity, and job market appeal."},
+            {"role": "user", "content": f"Please analyze this resume and suggest improvements based on the following request: {user_question}\n\n{resume_text}"}
+        ]
+    )
+    return response['choices'][0]['message']['content'].strip()
+
+# ---------------------- Flask Routes ----------------------
+
 @app.route('/login', methods=['POST'])
 def login():
     username = request.json.get('username')
     password = request.json.get('password')
     login_message = verify_user(username, password)
-    
     if login_message == "Login successful":
-        session['username'] = username  # Save username in session
+        session['username'] = username
         return jsonify({"message": login_message})
     else:
         return jsonify({"message": login_message}), 400
 
-# Endpoint for registration (signup)
 @app.route('/register', methods=['POST'])
 def register():
     username = request.json.get('username')
     name = request.json.get('name')
     password = request.json.get('password')
-    
-    # Check if the username already exists
     if user_collection.find_one({'username': username}):
         return jsonify({"message": "Username already exists"}), 400
-    
     add_user(username, name, password)
     return jsonify({"message": "User registered successfully"})
 
-# Endpoint for password reset
 @app.route('/reset_password', methods=['POST'])
 def reset():
     username = request.json.get('username')
     new_password = request.json.get('new_password')
     return jsonify({"message": reset_password(username, new_password)})
 
-# Protected route for accessing job recommendations (accessible only after login)
 @app.route('/job_recommendations', methods=['GET'])
 def job_recommendations():
     if 'username' not in session:
-        return redirect(url_for('login_page'))  # Redirect to login if not logged in
+        return jsonify({"message": "Not logged in"}), 400
     
     job_title = request.args.get('job_title')
+    skills_input = request.args.get('skills')
+    skills_list = [skill.strip() for skill in skills_input.split(',')] if skills_input else []
+    
     if job_title:
-        # Placeholder for job recommendations (you can add a real API later)
-        return jsonify({
-            "jobs": [
-                "Job 1: Data Scientist at Company XYZ",
-                "Job 2: Data Scientist at Company ABC",
-                "Job 3: Junior Data Scientist at Company DEF"
-            ]
-        })
+        matching_jobs = fetch_jobs(job_title, skills_list)
+        return jsonify({"jobs": matching_jobs})
     else:
         return jsonify({"message": "Please provide a job title."})
 
-# Career Path Analysis (accessible only after login)
-@app.route('/career_path_analysis', methods=['GET'])
-def career_path_analysis():
-    if 'username' not in session:
-        return redirect(url_for('login_page'))  # Redirect to login if not logged in
-    
-    current_job = request.args.get('current_job')
-    if current_job:
-        # Placeholder for career path analysis (you can integrate AI or a dataset for better insights)
-        return jsonify({
-            "career_path": [
-                "Suggested Career Path 1: Senior Developer -> Lead Developer -> CTO",
-                "Suggested Career Path 2: Junior Developer -> Backend Developer -> Software Architect"
-            ]
-        })
-    else:
-        return jsonify({"message": "Please provide your current job title."})
-
-# Resume Review (accessible only after login)
 @app.route('/resume_review', methods=['POST'])
 def resume_review():
     if 'username' not in session:
-        return redirect(url_for('login_page'))  # Redirect to login if not logged in
+        return jsonify({"message": "Not logged in"}), 400
     
     uploaded_resume = request.files['resume']
     if uploaded_resume:
-        # Placeholder for resume review (you can later integrate AI models for feedback)
-        return jsonify({"message": "Your resume looks good! Make sure to improve your skills in Python and Machine Learning."})
+        resume_text = ""
+        if uploaded_resume.filename.endswith('.pdf'):
+            resume_text = extract_text_from_pdf(uploaded_resume)
+        elif uploaded_resume.filename.endswith('.docx'):
+            resume_text = extract_text_from_docx(uploaded_resume)
+        
+        if resume_text.strip():
+            user_question = request.json.get('user_question')
+            feedback = get_resume_feedback(resume_text, user_question)
+            return jsonify({"message": feedback})
+        else:
+            return jsonify({"message": "Could not extract text from the resume."}), 400
     else:
         return jsonify({"message": "Please upload a resume."})
 
-# Logout route
-@app.route('/logout', methods=['GET'])
-def logout():
-    session.pop('username', None)  # Remove username from session
-    return jsonify({"message": "Logged out successfully"})
+# ---------------------- Main Flask App ----------------------
 
-# Forgot Password (Reset Password directly)
-@app.route('/forgot_password', methods=['POST'])
-def forgot_password():
-    username = request.json.get('username')
-    new_password = request.json.get('new_password')
-    
-    if username and new_password:
-        reset_response = reset_password(username, new_password)
-        return jsonify({"message": reset_response})
-    else:
-        return jsonify({"message": "Please provide both username and new password."}), 400
-
-# Set default page to login
 if __name__ == '__main__':
     app.run(debug=True)

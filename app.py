@@ -1,13 +1,9 @@
 import streamlit as st
-from pymongo import MongoClient
+from backend import fetch_jobs, extract_text_from_pdf, extract_text_from_docx, get_resume_feedback
 
-# MongoDB Connection
-try:
-    client = MongoClient("mongodb+srv://Yateeka:hacklytics@hackalytics.warwu.mongodb.net/")
-    db = client['job_data']
-    job_collection = db['job_listings']
-except Exception as e:
-    st.error(f"Database connection failed: {e}")
+
+# Enable detailed error messages
+st.set_option('client.showErrorDetails', True)
 
 # Initialize session state for login and navigation
 if 'logged_in' not in st.session_state:
@@ -17,7 +13,8 @@ if 'username' not in st.session_state:
 if 'current_page' not in st.session_state:
     st.session_state.current_page = "Sign In"
 
-# Authentication Functions
+# ---------------------- Authentication Functions ----------------------
+
 def sign_in():
     st.subheader("Sign In")
     username = st.text_input("Username", key="signin_username")
@@ -26,7 +23,7 @@ def sign_in():
         if username and password:
             st.session_state.logged_in = True
             st.session_state.username = username
-            st.session_state.current_page = "Job Search"  # Redirect to Job Search
+            st.session_state.current_page = "Job Search"
             st.success(f"Welcome back, {username}!")
             st.rerun()
         else:
@@ -38,9 +35,8 @@ def sign_up():
     password = st.text_input("New Password", type="password", key="signup_password")
     if st.button("Sign Up"):
         st.success("Account created successfully!")
-        st.session_state.current_page = "Sign In"  # Redirect to Sign In
-        st.rerun()  # 🚀 Auto-redirect
-
+        st.session_state.current_page = "Sign In"
+        st.rerun()
 
 def change_password():
     st.subheader("Change Password")
@@ -49,6 +45,15 @@ def change_password():
     new_password = st.text_input("New Password", type="password", key="new_pass")
     if st.button("Change Password"):
         st.success("Password changed successfully!")
+
+def sign_out():
+    st.session_state.logged_in = False
+    st.session_state.username = ""
+    st.session_state.current_page = "Sign In"
+    st.success("Signed out successfully!")
+    st.rerun()
+
+# ---------------------- Job Search ----------------------
 
 def job_search():
     st.subheader("Job Search")
@@ -113,37 +118,48 @@ def job_search():
         except Exception as e:
             st.error(f"Error fetching data: {e}")
 
+# ---------------------- Resume Upload and Feedback ----------------------
 
 def upload_resume():
     st.subheader("Upload Resume")
     uploaded_file = st.file_uploader("Choose a file", type=["pdf", "docx"])
+
     if uploaded_file is not None:
         st.success(f"Uploaded: {uploaded_file.name}")
 
-def sign_out():
-    st.session_state.logged_in = False
-    st.session_state.username = ""
-    st.session_state.current_page = "Sign In"
-    st.success("Signed out successfully!")
-    st.rerun()
+        # Extract text
+        if uploaded_file.type == "application/pdf":
+            resume_text = extract_text_from_pdf(uploaded_file)
+        elif uploaded_file.type == "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+            resume_text = extract_text_from_docx(uploaded_file)
+        else:
+            st.error("Unsupported file type.")
+            return
+
+        if not resume_text.strip():
+            st.error("Could not extract any text from the resume. Please try another file.")
+            return
+
+        user_question = st.text_input("Enter your question or specific field (e.g., Data Science):")
+
+        if st.button("Get Feedback"):
+            feedback = get_resume_feedback(resume_text, user_question)
+            st.subheader("Resume Feedback")
+            st.write(feedback)
+
+# ---------------------- Main App ----------------------
 
 def main():
-    #st.title("MongoDB Job Search App")
-
-    # Dynamic menu based on login status
     if st.session_state.logged_in:
         menu = ["Job Search", "Upload Resume", "Sign Out"]
     else:
         menu = ["Sign In", "Sign Up", "Change Password"]
 
-    # Sidebar navigation
     choice = st.sidebar.radio("Navigation", menu, index=menu.index(st.session_state.current_page))
 
-    # Update session state if navigation changes
     if st.session_state.current_page != choice:
         st.session_state.current_page = choice
 
-    # Conditional rendering based on current page
     if st.session_state.current_page == "Sign In":
         sign_in()
     elif st.session_state.current_page == "Sign Up":
