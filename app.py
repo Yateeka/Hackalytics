@@ -52,17 +52,48 @@ def change_password():
 
 def job_search():
     st.subheader("Job Search")
-    job_title = st.text_input("Enter Desired Job Title:")
-    skills_input = st.text_input("Enter Required Skills (comma-separated):")
+    
+    # Dropdown for Job Title selection
+    job_title_input = st.selectbox(
+        "Select Job Title", 
+        options=["Select", 
+                 "Software Engineer", 
+                 "Data Scientist", 
+                 "Product Manager", 
+                 "Registered Nurse", 
+                 "HR Specialist", 
+                 "Financial Analyst", 
+                 "Construction Manager", 
+                 "Investment Banker", 
+                 "Teacher", 
+                 "Event Planner", 
+                 "Customer Service Representative"],  # List of job titles
+        index=0  # Default to 'Select'
+    )
+    
+    # Dropdown for Employment Type selection
+    employment_type_input = st.selectbox(
+        "Select Employment Type", 
+        options=["Select", "Intern", "Full-time", "Part-time"],  # Default option is 'Select'
+        index=0  # By default, 'Select' will be the first option
+    )
 
     if st.button("Search Jobs"):
-        skills_list = [skill.strip() for skill in skills_input.split(',') if skill.strip()]
+        # Only proceed if valid selections are made
+        if job_title_input == "Select":
+            st.error("Please select a valid job title.")
+            return
+        if employment_type_input == "Select":
+            st.error("Please select a valid employment type.")
+            return
 
+        # Process the job search based on the selected job title and employment type
         query = {
-            'job_title': {'$regex': job_title, '$options': 'i'}
+            'job_title': {'$regex': job_title_input, '$options': 'i'}
         }
-        if skills_list:
-            query['required_skills'] = {'$in': skills_list}
+
+        if employment_type_input != "Select":
+            query['employment_type'] = {'$regex': employment_type_input, '$options': 'i'}  # Case-insensitive match for employment_type
 
         try:
             matching_jobs = list(job_collection.find(query))
@@ -78,9 +109,10 @@ def job_search():
                     st.write(f"📝 Salary: {job.get('salary_range', 'N/A')}")
                     st.write("---")
             else:
-                st.warning("No matching jobs found. Try different keywords or skills.")
+                st.warning("No matching jobs found. Try different keywords or employment type.")
         except Exception as e:
             st.error(f"Error fetching data: {e}")
+
 
 def upload_resume():
     st.subheader("Upload Resume")

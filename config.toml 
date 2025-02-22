@@ -1,9 +1,0 @@
-[theme]
-primaryColor = "#3F4B8E"  # Dark blue color for interactive elements
-backgroundColor = "#FFFFFF"  # White background for the main content area
-secondaryBackgroundColor = "#F0F2F6"  # Light gray background for sidebar and some widgets
-textColor = "#3F4B8E"  # Dark blue text color
-font = "sans serif"  # Choose a font that fits your design, you can also use 'serif' or 'monospace'
-
-[client]
-showBanner = false
