@@ -1,7 +1,22 @@
 import streamlit as st
-from backend import fetch_jobs, extract_text_from_pdf, extract_text_from_docx, get_resume_feedback
+from backend import fetch_jobs, extract_text_from_pdf, extract_text_from_docx, get_resume_feedback, fetch_unique_job_titles, fetch_unique_employment_type
+from pymongo import MongoClient
+# MongoDB Connection
+try:
+    client = MongoClient("mongodb+srv://Yateeka:hacklytics@hackalytics.warwu.mongodb.net/")
+    db = client['job_data']
+    job_collection = db['job_listings']
+except Exception as e:
+    st.error(f"Database connection failed: {e}")
 
-
+# Initialize session state for login and navigation
+if 'logged_in' not in st.session_state:
+    st.session_state.logged_in = False
+if 'username' not in st.session_state:
+    st.session_state.username = ""
+if 'current_page' not in st.session_state:
+    st.session_state.current_page = "Sign In"
+    
 # Enable detailed error messages
 st.set_option('client.showErrorDetails', True)
 

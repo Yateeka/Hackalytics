@@ -1,6 +1,6 @@
 from flask import Flask, request, jsonify, session
 from pymongo import MongoClient
-from hashlib import sha256
+import bcrypt
 import openai
 from dotenv import load_dotenv
 import os
@@ -11,9 +11,9 @@ import docx
 load_dotenv()
 
 # OpenAI API setup
-openai.api_key = os.getenv("API_KEY")  # Load the OpenAI API key from .env file
+openai.api_key = os.getenv("API_KEY")
 
-# Establish MongoDB connection using the connection string in the .env file
+# Establish MongoDB connection
 mongo_connection_string = os.getenv("MONGO_CONNECTION_STRING")
 client = MongoClient(mongo_connection_string)
 db = client['job_data']
@@ -26,8 +26,15 @@ app.secret_key = os.getenv("FLASK_SECRET_KEY")  # Secret key for session managem
 
 # ---------------------- User Management Functions ----------------------
 
+def hash_password(password):
+    # Hash the password with bcrypt
+    return bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
+
+def verify_password(stored_password, provided_password):
+    return bcrypt.checkpw(provided_password.encode('utf-8'), stored_password)
+
 def add_user(username, name, password):
-    hashed_password = sha256(password.encode()).hexdigest()
+    hashed_password = hash_password(password)
     user_data = {
         'name': name,
         'username': username,
@@ -36,7 +43,7 @@ def add_user(username, name, password):
     user_collection.insert_one(user_data)
 
 def reset_password(username, new_password):
-    hashed_new_password = sha256(new_password.encode()).hexdigest()
+    hashed_new_password = hash_password(new_password)
     result = user_collection.update_one(
         {'username': username},
         {'$set': {'password': hashed_new_password}}
@@ -44,18 +51,42 @@ def reset_password(username, new_password):
     return "Password reset successfully" if result.matched_count > 0 else "User not found"
 
 def verify_user(username, password):
-    hashed_password = sha256(password.encode()).hexdigest()
     user = user_collection.find_one({'username': username})
-    return "Login successful" if user and user['password'] == hashed_password else "Invalid credentials"
+    if user and verify_password(user['password'], password):
+        return "Login successful"
+    return "Invalid credentials"
 
 # ---------------------- MongoDB Query Functions ----------------------
 
-# Fetch jobs from MongoDB based on job title and required skills
-def fetch_jobs(job_title, skills_list):
-    query = {'job_title': {'$regex': job_title, '$options': 'i'}}
-    if skills_list:
-        query['required_skills'] = {'$in': skills_list}
-    return list(job_collection.find(query))
+# Fetch jobs from MongoDB based on job title and employment type
+def fetch_jobs(job_title, employment_type, page=1, per_page=10):
+    query = {'job_title': {'$regex': job_title, '$options': 'i'}}  # Case-insensitive match
+    if employment_type:
+        query['employment_type'] = {'$regex': employment_type, '$options': 'i'}  # Filter by employment type
+    
+    # Add pagination by limiting the number of results
+    jobs = job_collection.find(query).skip((page - 1) * per_page).limit(per_page)
+    return list(jobs)
+
+def fetch_unique_job_titles():
+    try:
+        # Fetch distinct job titles from MongoDB
+        job_titles = job_collection.distinct("job_title")
+        return sorted(job_titles)  # Sort alphabetically
+    except Exception as e:
+        print(f"Error fetching job titles: {e}")
+        return []
+
+def fetch_unique_employment_type():
+    try:
+        # Fetch distinct employment type from MongoDB
+        employment_type = job_collection.distinct("employment_type")
+        return sorted(employment_type)  # Sort alphabetically
+    except Exception as e:
+        print(f"Error fetching employment types: {e}")
+        return []
+
+# ---------------------- Resume Text Extraction Functions ----------------------
 
 # Extract text from PDF using PyMuPDF
 def extract_text_from_pdf(file):
@@ -74,7 +105,7 @@ def extract_text_from_docx(file):
 
 def get_resume_feedback(resume_text, user_question):
     response = openai.ChatCompletion.create(
-        model="gpt-4",  # Use the correct model: gpt-4 or gpt-3.5-turbo (or mini variant if needed)
+        model="gpt-4",
         messages=[
             {"role": "system", "content": "You are a helpful assistant that provides detailed resume feedback focusing on structure, clarity, and job market appeal."},
             {"role": "user", "content": f"Please analyze this resume and suggest improvements based on the following request: {user_question}\n\n{resume_text}"}
@@ -117,14 +148,14 @@ def job_recommendations():
         return jsonify({"message": "Not logged in"}), 400
     
     job_title = request.args.get('job_title')
-    skills_input = request.args.get('skills')
-    skills_list = [skill.strip() for skill in skills_input.split(',')] if skills_input else []
-    
-    if job_title:
-        matching_jobs = fetch_jobs(job_title, skills_list)
-        return jsonify({"jobs": matching_jobs})
-    else:
-        return jsonify({"message": "Please provide a job title."})
+    employment_type = request.args.get('employment_type')
+
+    if not job_title:
+        return jsonify({"message": "Please provide a job title."}), 400
+
+    page = int(request.args.get('page', 1))  # Default page is 1
+    matching_jobs = fetch_jobs(job_title, employment_type, page)
+    return jsonify({"jobs": matching_jobs})
 
 @app.route('/resume_review', methods=['POST'])
 def resume_review():
