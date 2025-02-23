@@ -178,6 +178,32 @@ def resume_review():
             return jsonify({"message": "Could not extract text from the resume."}), 400
     else:
         return jsonify({"message": "Please upload a resume."})
+    
+def generate_interview_questions(job_description):
+    prompt = f"Generate 5 to 6 technical interview questions for the following job description:\n{job_description}"
+
+    response = openai.Completion.create(
+        engine="text-davinci-003",  # Or another GPT model you prefer
+        prompt=prompt,
+        max_tokens=150,
+        n=1,
+        stop=None,
+        temperature=0.7
+    )
+
+    questions = response.choices[0].text.strip().split('\n')
+    return questions
+
+@app.route('/generate_questions', methods=['POST'])
+def generate_questions():
+    data = request.get_json()
+    job_description = data.get('job_description')
+    
+    if not job_description:
+        return jsonify({"error": "Job description is required"}), 400
+
+    questions = generate_interview_questions(job_description)
+    return jsonify({"questions": questions}), 200
 
 # ---------------------- Main Flask App ----------------------
 

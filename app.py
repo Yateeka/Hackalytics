@@ -1,6 +1,12 @@
 import streamlit as st
 from backend import fetch_jobs, extract_text_from_pdf, extract_text_from_docx, get_resume_feedback, fetch_unique_job_titles, fetch_unique_employment_type
 from pymongo import MongoClient
+import subprocess
+import requests
+import openai
+import os
+import random
+
 # MongoDB Connection
 try:
     client = MongoClient("mongodb+srv://Yateeka:hacklytics@hackalytics.warwu.mongodb.net/")
@@ -162,11 +168,57 @@ def upload_resume():
             st.subheader("Resume Feedback")
             st.write(feedback)
 
+
+# ---------------------- Chatbot Page ----------------------
+
+def chatbot_page():
+    st.subheader("Mock Interview Generator")
+    job_description = st.text_area("Enter Job Description:", height=200)
+    
+    if st.button("Generate Interview Questions"):
+        if job_description:
+            # Generate random interview questions using OpenAI
+            questions = generate_random_mock_interview_questions(job_description)
+            st.write("### Generated Interview Questions:")
+            for i, question in enumerate(questions, 1):
+                st.write(f"{question}")
+        else:
+            st.error("Please enter a job description.")
+
+# ---------------------- Function to generate random mock interview questions using OpenAI ----------------------
+
+def generate_random_mock_interview_questions(job_description):
+    try:
+        # Use OpenAI's API to generate a list of questions based on the job description
+        response = openai.ChatCompletion.create(
+            model="gpt-4",  # You can use "gpt-3.5-turbo" or "gpt-4" depending on your access
+            messages=[
+                {"role": "system", "content": "You are an expert career coach."},
+                {"role": "user", "content": f"Generate 5 random mock interview questions based on the following job description: {job_description}"}
+            ]
+        )
+
+        # Extract the generated questions from the response and clean up the formatting
+        questions = response['choices'][0]['message']['content'].strip().split('\n')
+        
+        # Clean up any numbering that OpenAI might include in the response
+        clean_questions = []
+        for question in questions:
+            # Remove any leading number or period (e.g., "1." or "2)")
+            clean_question = question.lstrip('0123456789.').strip()
+            clean_questions.append(clean_question)
+        
+        return clean_questions
+
+    except Exception as e:
+        st.error(f"Error generating questions: {e}")
+        return []
+
 # ---------------------- Main App ----------------------
 
 def main():
     if st.session_state.logged_in:
-        menu = ["Job Search", "Upload Resume", "Sign Out"]
+        menu = ["Job Search", "Upload Resume", "Go to Chatbot", "Sign Out"]
     else:
         menu = ["Sign In", "Sign Up", "Change Password"]
 
@@ -185,6 +237,8 @@ def main():
         job_search()
     elif st.session_state.current_page == "Upload Resume":
         upload_resume()
+    elif st.session_state.current_page == "Go to Chatbot":
+        chatbot_page()  # Navigate to the chatbot page
     elif st.session_state.current_page == "Sign Out":
         sign_out()
 
